@@ -67,3 +67,47 @@ def read_stock(ticker: str, db: Session = Depends(get_db)):
         db.refresh(record)
 
     return result
+from app.services.stock_services import get_stock_analysis, get_fundamentals
+from app.models import StockAnalysis, Fundamentals
+from app.schemas import StockAnalysisResponse, StockHistoryItem, FundamentalsResponse
+
+@router.get("/fundamentals/{ticker}", response_model=FundamentalsResponse)
+def read_fundamentals(ticker: str, db: Session = Depends(get_db)):
+    ticker = ticker.upper()
+    data = get_fundamentals(ticker)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Fundamentals not found")
+
+    recent = (
+        db.query(Fundamentals)
+        .filter(Fundamentals.ticker == ticker)
+        .filter(Fundamentals.created_at >= datetime.utcnow() - timedelta(hours=24))
+        .first()
+    )
+
+    if not recent:
+        record = Fundamentals(**data)
+        db.add(record)
+        db.commit()
+
+    return data
+from app.services.recommendation import score_stock
+from app.schemas import RecommendationResponse
+
+@router.get("/recommendation/{ticker}", response_model=RecommendationResponse)
+def get_recommendation(ticker: str):
+    ticker = ticker.upper()
+
+    technicals = get_stock_analysis(ticker)
+    if technicals is None:
+        raise HTTPException(status_code=404, detail="Stock not found")
+
+    fundamentals = get_fundamentals(ticker)
+    if fundamentals is None:
+        raise HTTPException(status_code=404, detail="Fundamentals not found")
+
+    result = score_stock(fundamentals, technicals)
+    result["ticker"] = ticker
+    result["current_price"] = technicals["current_price"]
+
+    return result

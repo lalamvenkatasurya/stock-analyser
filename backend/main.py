@@ -13,7 +13,7 @@ app = FastAPI(title="Stock Analyser API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten this later for production
+    allow_origins=["http://localhost:5173"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
